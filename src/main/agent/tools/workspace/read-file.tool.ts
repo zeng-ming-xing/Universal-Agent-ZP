@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { tool, type ToolRuntime } from 'langchain';
 import { emitToolEvent } from '../event';
+import { okToolMessage } from '../utils/tool-result';
 import { MAX_READ_BYTES } from './config';
 import { resolveWorkspacePath } from './path-guards';
 import { readFileSchema } from './schemas';
@@ -60,14 +61,18 @@ export function createReadFileTool() {
         message: `已读取 ${parsed.path}（第 ${startLine}-${endLine} 行，共 ${allLines.length} 行）`,
       });
 
-      return JSON.stringify({
-        ok: true,
-        path: parsed.path,
-        total_lines: allLines.length,
-        start_line: startLine,
-        end_line: endLine,
-        content: body,
-      });
+      return okToolMessage(
+        runtime.toolCallId,
+        'read_file',
+        `已读取 ${parsed.path}（第 ${startLine}-${endLine} 行）`,
+        {
+          path: parsed.path,
+          total_lines: allLines.length,
+          start_line: startLine,
+          end_line: endLine,
+          content: body,
+        },
+      );
     },
     {
       name: 'read_file',

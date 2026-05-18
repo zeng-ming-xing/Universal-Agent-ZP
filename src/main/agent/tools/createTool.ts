@@ -11,6 +11,7 @@ import {
 } from './mysql/client';
 import { createModel } from '../model';
 import { unwrapJsonText } from './utils/unwrap-json';
+import { okToolMessage, failToolMessage } from './utils/tool-result';
 import { createWebSearchTool } from './web-search/web-search.tool';
 import { createWorkspaceTools } from './workspace';
 import {
@@ -63,7 +64,12 @@ export function createAgentTools(options?: CreateAgentToolsOptions) {
         message: `已加载 ${catalog.databases.length} 个数据库、${tableCount} 张表的目录信息`,
       });
       onMysqlCatalogSynced?.(catalog);
-      return JSON.stringify(catalog);
+      return okToolMessage(
+        runtime.toolCallId,
+        'get_table_catalog',
+        `已加载 ${catalog.databases.length} 个数据库、${tableCount} 张表的目录信息`,
+        catalog,
+      );
     },
     {
       name: 'get_table_catalog',
@@ -96,7 +102,12 @@ export function createAgentTools(options?: CreateAgentToolsOptions) {
         tool: 'get_table_schema',
         message: `已加载 ${schema.databases.length} 个数据库、${tableCount} 张表的字段结构`,
       });
-      return JSON.stringify(schema);
+      return okToolMessage(
+        runtime.toolCallId,
+        'get_table_schema',
+        `已加载 ${schema.databases.length} 个数据库、${tableCount} 张表的字段结构`,
+        schema,
+      );
     },
     {
       name: 'get_table_schema',
@@ -160,7 +171,12 @@ export function createAgentTools(options?: CreateAgentToolsOptions) {
         tool: 'generate_sql',
         message: 'SQL 生成完成',
       });
-      return sql;
+      return okToolMessage(
+        runtime.toolCallId,
+        'generate_sql',
+        'SQL 生成完成',
+        { sql },
+      );
     },
     {
       name: 'generate_sql',
@@ -226,14 +242,30 @@ export function createAgentTools(options?: CreateAgentToolsOptions) {
         result = { valid: false, reason: 'SQL 校验结果解析失败' };
       }
 
+      const validateSummary = result.valid
+        ? 'SQL 校验通过'
+        : `SQL 校验未通过：${result.reason}`;
       emitToolEvent(runtime, {
         kind: 'tool_result',
         tool: 'validate_sql',
-        message: result.valid
-          ? 'SQL 校验通过'
-          : `SQL 校验未通过：${result.reason}`,
+        message: validateSummary,
       });
-      return JSON.stringify(result);
+      // 校验失败时返回 failToolMessage，让 Agent 明确感知到 ok:false，
+      // 避免 Agent 误以为校验通过而继续执行，减少无意义的重试循环。
+      if (!result.valid) {
+        return failToolMessage(
+          runtime.toolCallId,
+          'validate_sql',
+          validateSummary,
+          result,
+        );
+      }
+      return okToolMessage(
+        runtime.toolCallId,
+        'validate_sql',
+        validateSummary,
+        result,
+      );
     },
     {
       name: 'validate_sql',
@@ -268,7 +300,12 @@ export function createAgentTools(options?: CreateAgentToolsOptions) {
         tool: 'run_sql',
         message: `SQL 执行完成，共 ${totalCount} 条，返回 ${rows.length} 条`,
       });
-      return JSON.stringify(result);
+      return okToolMessage(
+        runtime.toolCallId,
+        'run_sql',
+        `SQL 执行完成，共 ${totalCount} 条，返回 ${rows.length} 条`,
+        result,
+      );
     },
     {
       name: 'run_sql',
@@ -298,7 +335,12 @@ export function createAgentTools(options?: CreateAgentToolsOptions) {
           tool: 'search_uploaded_documents',
           message: `检索失败：${r.error}`,
         });
-        return JSON.stringify({ ok: false, error: r.error });
+        return failToolMessage(
+          runtime.toolCallId,
+          'search_uploaded_documents',
+          `检索失败：${r.error}`,
+          { error: r.error },
+        );
       }
       const hits = r.hits.map((h) => {
         const meta =
@@ -321,7 +363,12 @@ export function createAgentTools(options?: CreateAgentToolsOptions) {
         tool: 'search_uploaded_documents',
         message: `检索完成，命中 ${hits.length} 条片段`,
       });
-      return JSON.stringify({ ok: true, hits });
+      return okToolMessage(
+        runtime.toolCallId,
+        'search_uploaded_documents',
+        `检索完成，命中 ${hits.length} 条片段`,
+        { hits },
+      );
     },
     {
       name: 'search_uploaded_documents',

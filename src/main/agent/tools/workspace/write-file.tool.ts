@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { tool, type ToolRuntime } from 'langchain';
 import { emitToolEvent } from '../event';
+import { okToolMessage } from '../utils/tool-result';
 import { resolveWorkspacePath } from './path-guards';
 import { writeFileSchema } from './schemas';
 
@@ -32,12 +33,16 @@ export function createWriteFileTool() {
         message: `已写入 ${parsed.path}（${bytes} 字节，${lineCount} 行）`,
       });
 
-      return JSON.stringify({
-        ok: true,
-        path: parsed.path,
-        bytes,
-        lines: lineCount,
-      });
+      return okToolMessage(
+        runtime.toolCallId,
+        'write_file',
+        `已写入 ${parsed.path}（${bytes} 字节，${lineCount} 行）`,
+        {
+          path: parsed.path,
+          bytes,
+          lines: lineCount,
+        },
+      );
     },
     {
       name: 'write_file',

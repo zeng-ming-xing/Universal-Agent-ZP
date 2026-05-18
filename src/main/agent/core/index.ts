@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { MemorySaver } from '@langchain/langgraph-checkpoint';
-import { HumanMessage, type BaseMessage } from '@langchain/core/messages';
+import { AIMessageChunk, HumanMessage, type BaseMessage } from '@langchain/core/messages';
 import { createAgent } from 'langchain';
 import { MessagesValue, START, StateSchema } from '@langchain/langgraph';
 import { createModel } from '../model';
@@ -44,7 +44,7 @@ export class Agent extends EventEmitter {
     this.manager = manager;
 
     const agentModel = createModel({
-      temperature: 0.2,
+      temperature: 0.4,
       maxTokens: 8192,
     }) as unknown as NonNullable<
       Parameters<typeof createAgent>[0]['model']
@@ -62,6 +62,8 @@ export class Agent extends EventEmitter {
             formatMysqlCatalogForPrompt(catalog);
         },
       }),
+      // systemPrompt 在构造时静态绑定。catalog 更新后如需刷新，
+      // 应通过 AgentManager 重新创建 Agent 实例（或在 runAgent 前更新 state）。
       systemPrompt: buildMainAgentSystemPrompt(
         this.manager.mysqlSchemaCatalogText,
         this.manager.ragDocumentsPromptText,
@@ -205,7 +207,9 @@ export class Agent extends EventEmitter {
 
       if (mode === 'messages') {
         const [token] = payload as unknown as [unknown, unknown];
-
+        // 仅处理 AI 生成的文本块，跳过 ToolMessage 等非 AI 消息，
+        // 避免工具返回的 JSON（如 {"ok":true,"summary":"...","data":{...}}）被当作正常文本输出给用户。
+        if (!(token instanceof AIMessageChunk)) continue;
         const thinkingDelta = extractThinkingFromToken(token);
         if (thinkingDelta) {
           this.emitStreamEvent(

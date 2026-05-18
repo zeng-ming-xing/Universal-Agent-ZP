@@ -1,6 +1,7 @@
 import { tool, type ToolRuntime } from 'langchain';
 import { z } from 'zod';
 import { emitToolEvent } from '../event';
+import { okToolMessage } from '../utils/tool-result';
 import {
   callTavilyMcpSearch,
   formatMergedSearchResults,
@@ -123,7 +124,12 @@ export function createWebSearchTool() {
         message: `联网检索完成，共合并 ${okQueries.length}/${queries.length} 个查询的结果`,
       });
 
-      return result;
+      return okToolMessage(
+        runtime.toolCallId,
+        'web_search',
+        `联网检索完成，共合并 ${okQueries.length}/${queries.length} 个查询`,
+        { queries: okQueries, results: result },
+      );
     },
     {
       name: 'web_search',
