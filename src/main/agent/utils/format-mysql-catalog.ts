@@ -1,5 +1,5 @@
 export const MYSQL_SCHEMA_CATALOG_MAX_CHARS = Number(
-  process.env.AGENT_MYSQL_SCHEMA_CATALOG_MAX_CHARS ?? '16000'
+  process.env.AGENT_MYSQL_SCHEMA_CATALOG_MAX_CHARS
 )
 
 /** 与 {@link fetchMysqlTableCatalog} 返回结构一致（避免从 tools 桶导入产生循环） */

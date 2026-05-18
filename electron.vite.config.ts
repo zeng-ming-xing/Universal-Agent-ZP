@@ -2,8 +2,8 @@ import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
-/** mysql-service 端口，优先读环境变量 */
-const MYSQL_SERVICE_PORT = process.env.AGENT_MYSQL_SERVICE_PORT ?? '37123'
+/** mysql-service 端口，从环境变量读取 */
+const MYSQL_SERVICE_PORT = process.env.AGENT_MYSQL_SERVICE_PORT;
 
 export default defineConfig({
   main: {

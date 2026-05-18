@@ -15,22 +15,18 @@ import 'dotenv/config';
 //   pnpm prisma:push:all
 // ---------------------------------------------------------------------------
 
-const mysqlServicePort = Number(process.env.AGENT_MYSQL_SERVICE_PORT ?? '37123');
-const mysqlHost = process.env.MYSQL_HOST ?? '127.0.0.1';
-const mysqlPort = Number(process.env.MYSQL_PORT ?? '5000');
-const mysqlUser = process.env.MYSQL_USER ?? 'root';
-const mysqlPassword = process.env.MYSQL_PASSWORD ?? '123456';
+const mysqlServicePort = Number(process.env.AGENT_MYSQL_SERVICE_PORT);
+const mysqlHost = process.env.MYSQL_HOST;
+const mysqlPort = Number(process.env.MYSQL_PORT);
+const mysqlUser = process.env.MYSQL_USER;
+const mysqlPassword = process.env.MYSQL_PASSWORD;
 
 const pgHost = '127.0.0.1';
-const pgPort = 5432;
+const pgPort = Number(process.env.PG_PORT);
 
-const databaseUrl =
-  process.env.DATABASE_URL ??
-  `mysql://${encodeURIComponent(mysqlUser)}:${encodeURIComponent(mysqlPassword)}@${mysqlHost}:${mysqlPort}/mysql?connection_limit=5`;
+const databaseUrl = process.env.DATABASE_URL;
 
-const vectorDatabaseUrl =
-  process.env.VECTOR_DATABASE_URL ??
-  `postgresql://root:123456@${pgHost}:${pgPort}/postgres?schema=public&connection_limit=5`;
+const vectorDatabaseUrl = process.env.VECTOR_DATABASE_URL;
 
 const sharedEnv = {
   ...process.env,

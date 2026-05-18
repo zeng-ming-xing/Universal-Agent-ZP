@@ -1,10 +1,10 @@
 import type { MysqlAgentDocumentRow } from '../tools/mysql/client'
 
 export const RAG_DOCUMENTS_PROMPT_MAX_CHARS = Number(
-  process.env.AGENT_RAG_DOCUMENTS_PROMPT_MAX_CHARS ?? '12000'
+  process.env.AGENT_RAG_DOCUMENTS_PROMPT_MAX_CHARS
 )
 
-const SINGLE_SUMMARY_MAX = Number(process.env.AGENT_RAG_SINGLE_SUMMARY_MAX_CHARS ?? '1200')
+const SINGLE_SUMMARY_MAX = Number(process.env.AGENT_RAG_SINGLE_SUMMARY_MAX_CHARS)
 
 /** 将 GET /documents 结果格式化为系统提示附录（供模型选题与理解知识库边界） */
 export function formatRagDocumentsForPrompt(

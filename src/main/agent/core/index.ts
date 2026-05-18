@@ -31,10 +31,10 @@ export class Agent extends EventEmitter {
   private readonly agent: ReturnType<typeof createAgent>;
   private readonly sessionAbortMap = new Map<string, AbortController>();
   private readonly eventDedupLimit = Number(
-    process.env.AGENT_EVENT_DEDUP_LIMIT ?? '300'
+    process.env.AGENT_EVENT_DEDUP_LIMIT
   );
   private readonly recursionLimit = Number(
-    process.env.AGENT_RECURSION_LIMIT ?? '80'
+    process.env.AGENT_RECURSION_LIMIT
   );
 
   readonly manager: AgentManager;

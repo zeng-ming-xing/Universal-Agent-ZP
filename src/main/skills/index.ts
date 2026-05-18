@@ -12,7 +12,7 @@ export class SkillsManager {
   private readonly skillsRoot: string
   private readonly skills = new Map<string, Skill>()
 
-  constructor(skillsRoot = join(process.cwd(), '.agents/skills')) {
+  constructor(skillsRoot = process.env.AGENT_SKILLS_ROOT?.trim() || join(process.cwd(), '.agents/skills')) {
     this.skillsRoot = skillsRoot
   }
 

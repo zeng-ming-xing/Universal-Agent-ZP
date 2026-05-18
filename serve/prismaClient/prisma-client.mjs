@@ -1,10 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import {
-  MYSQL_HOST,
-  MYSQL_PORT,
-  MYSQL_USER,
-  MYSQL_PASSWORD,
-} from '../config.mjs';
 
 // MySQL 的 BIGINT / COUNT(*) 会被 Prisma 解析为 BigInt，
 // Express 默认的 JSON 序列化对 BigInt 会抛 TypeError，这里做一次全局兜底。
@@ -16,19 +10,12 @@ if (typeof BigInt.prototype.toJSON !== 'function') {
   };
 }
 
-// Prisma 要求 DATABASE_URL 必须指定一个库。Agent 动态探测库表时，
-// 真正访问的库由 SQL 里的 `库名.表名` 或运行时 `USE` 决定。
-// 这里默认连到 'mysql' 系统库，保证连接可建立。
-function buildDatabaseUrl() {
-  if (process.env.DATABASE_URL) {
-    return process.env.DATABASE_URL;
-  }
-  const user = encodeURIComponent(MYSQL_USER);
-  const password = encodeURIComponent(MYSQL_PASSWORD);
-  return `mysql://${user}:${password}@${MYSQL_HOST}:${MYSQL_PORT}/mysql?connection_limit=5`;
+// DATABASE_URL 必须由环境变量 .env 提供，不再构造默认值。
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error('缺少必需的环境变量: DATABASE_URL，请在 .env 中配置');
 }
 
-const databaseUrl = buildDatabaseUrl();
 // 确保 PrismaClient 内部取到同一份 URL（未显式传入时由 schema.prisma 读取 env）。
 process.env.DATABASE_URL = databaseUrl;
 
