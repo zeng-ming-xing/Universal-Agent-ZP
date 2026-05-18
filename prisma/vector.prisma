@@ -1,0 +1,78 @@
+// ============================================================================
+// PostgreSQL 向量数据库 schema（独立于 MySQL 业务库 schema.prisma）
+// ----------------------------------------------------------------------------
+// 背景：
+//   Prisma 单个 schema 仅支持一个 datasource，无法在 schema.prisma 里同时
+//   声明 MySQL + PostgreSQL。跨数据库的官方做法是：为每个数据库写独立 schema，
+//   分别生成独立的 Client，运行时各自实例化。
+//
+// 使用约定：
+//   1. 生成客户端：  pnpm prisma generate --schema prisma/vector.prisma
+//      （或使用 package.json 中的 `prisma:generate:vector` 脚本）
+//   2. 同步结构：    pnpm prisma db push  --schema prisma/vector.prisma
+//      （首次会自动安装/启用 vector 扩展，即 CREATE EXTENSION vector）
+//   3. 反向拉取：    pnpm prisma db pull  --schema prisma/vector.prisma
+//   4. 运行时引入：
+//        import { PrismaClient as VectorPrismaClient }
+//          from '.prisma/vector-client';
+//
+// 依赖：
+//   - pgvector 扩展（本地 Postgres 需已安装），此处通过 postgresqlExtensions
+//     preview 特性声明；若本地未安装，请先执行：
+//       CREATE EXTENSION IF NOT EXISTS vector;
+// ============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  // 独立输出路径，避免覆盖 MySQL schema 默认生成的 @prisma/client
+  output          = "../node_modules/.prisma/vector-client"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("VECTOR_DATABASE_URL")
+  extensions = [vector]
+}
+
+/// AI 对话消息向量化存储
+/// -----------------------------------------------------------------
+/// 对应 MySQL 业务库中的 agent_messages：每条消息可生成一条 embedding
+/// 记录，用于后续 RAG / 相似消息召回等场景。
+///
+/// 说明：
+///   - message_id     对齐 MySQL 的 agent_messages.id（BigInt），通过
+///                    `@unique` 保证一条消息最多一条向量（如需支持分块，
+///                    可把唯一约束改为复合键 [message_id, chunk_index]）。
+///   - conversation_id 冗余存储，方便按会话过滤而无需跨库 join。
+///   - role / content  冗余业务字段，便于向量检索后直接返回上下文。
+///   - embedding       pgvector 向量列；当前与智谱 embedding 常见输出对齐为 **1024**。
+///                     若换模型（如 1536 维），须同步改此处 vector(N)、主进程
+///                     RAG_EMBEDDING_DIM（或 `src/main/rag/config` 中默认维度）并 `db push`。
+///   - metadata        任意结构化元数据（如模型名、token 数、来源等）。
+model agent_message_embeddings {
+  id              String                       @id @default(uuid()) @db.Uuid
+  message_id      BigInt                       @unique
+  conversation_id String                       @db.VarChar(64)
+  role            String                       @db.VarChar(16)
+  content         String
+  embedding       Unsupported("vector(1024)")?
+  metadata        Json?
+  created_at      DateTime                     @default(now()) @db.Timestamptz(6)
+
+  @@index([conversation_id])
+}
+
+/// 知识文档分段向量（与 MySQL agent_documents.id 对齐）
+model agent_document_chunk_embeddings {
+  id          String                       @id @default(uuid()) @db.Uuid
+  document_id String                       @db.VarChar(64)
+  chunk_index Int
+  content     String
+  embedding   Unsupported("vector(1024)")?
+  metadata    Json?
+  created_at  DateTime                     @default(now()) @db.Timestamptz(6)
+
+  @@unique([document_id, chunk_index])
+  @@index([document_id])
+}

@@ -1,18 +1,31 @@
-import { contextBridge, ipcRenderer,type IpcRendererEvent  } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 
 type AgentStreamEvent = {
-  kind: string;
-  message: string;
-  tool?: string;
-  step?: string;
-  args?: unknown;
-};
+  kind: string
+  message: string
+  tool?: string
+  step?: string
+  args?: unknown
+}
+
+type RagUploadProgress = {
+  stage: string
+  message: string
+  current?: number
+  total?: number
+}
 
 
 // Custom APIs for renderer
 const ipc = {
-  agentCreateSession: async (sessionId: string) => {
-    return await ipcRenderer.invoke('agent:create-session', { sessionId });
+  agentCreateSession: async (
+    sessionId: string,
+    messages?: Array<{ role: string; content: string }>
+  ) => {
+    return await ipcRenderer.invoke('agent:create-session', {
+      sessionId,
+      messages: messages ?? []
+    });
   },
   agentRemoveSession: async (sessionId: string) => {
     return await ipcRenderer.invoke('agent:remove-session', { sessionId });
@@ -89,6 +102,29 @@ const ipc = {
     }
     return result?.summary ?? '';
   },
+  ragPickDocumentPath: async (): Promise<string | null> => {
+    const r = (await ipcRenderer.invoke('rag:pick-document-path')) as { path?: string | null };
+    const p = r?.path;
+    return typeof p === 'string' && p.trim() ? p.trim() : null;
+  },
+  ragUploadDocument: async (
+    filePath: string,
+    handlers?: { onProgress?: (p: RagUploadProgress) => void }
+  ) => {
+    const listener = (_event: IpcRendererEvent, data: RagUploadProgress) => {
+      handlers?.onProgress?.(data)
+    }
+    ipcRenderer.on('rag:upload-progress', listener)
+    try {
+      return (await ipcRenderer.invoke('rag:upload-document', {
+        filePath
+      })) as
+        | { ok: true; documentId: string; title: string; chunkCount: number; summary: string }
+        | { ok: false; error: string }
+    } finally {
+      ipcRenderer.removeListener('rag:upload-progress', listener)
+    }
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

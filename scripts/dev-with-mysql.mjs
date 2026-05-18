@@ -1,13 +1,36 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import 'dotenv/config';
+
+// ---------------------------------------------------------------------------
+// 开发一键启动脚本：
+//   1. docker compose up -d 拉起 mysql + pgvector
+//   2. prisma db push：按 schema 在 MySQL / Postgres 中建表（含 agent_documents 等）
+//   3. 启动 mysql-service（Node Express 服务）
+//   4. 启动 pnpm dev（Electron 主进程 + Vite）
+//
+// 若你单独跑 `pnpm dev`，请先在项目根执行（且 .env 里 DATABASE_URL / VECTOR_DATABASE_URL
+// 与 serve、Electron 使用的一致）：
+//   pnpm prisma:push:all
+// ---------------------------------------------------------------------------
 
 const mysqlServicePort = Number(process.env.AGENT_MYSQL_SERVICE_PORT ?? '37123');
 const mysqlHost = process.env.MYSQL_HOST ?? '127.0.0.1';
-const mysqlPort = process.env.MYSQL_PORT ?? '5000';
+const mysqlPort = Number(process.env.MYSQL_PORT ?? '5000');
 const mysqlUser = process.env.MYSQL_USER ?? 'root';
 const mysqlPassword = process.env.MYSQL_PASSWORD ?? '123456';
-const containerName = process.env.MYSQL_DOCKER_CONTAINER ?? 'agitated_nobel';
+
+const pgHost = '127.0.0.1';
+const pgPort = 5432;
+
+const databaseUrl =
+  process.env.DATABASE_URL ??
+  `mysql://${encodeURIComponent(mysqlUser)}:${encodeURIComponent(mysqlPassword)}@${mysqlHost}:${mysqlPort}/mysql?connection_limit=5`;
+
+const vectorDatabaseUrl =
+  process.env.VECTOR_DATABASE_URL ??
+  `postgresql://root:123456@${pgHost}:${pgPort}/postgres?schema=public&connection_limit=5`;
 
 const sharedEnv = {
   ...process.env,
@@ -18,45 +41,43 @@ const sharedEnv = {
   AGENT_MYSQL_SERVICE_PORT: String(mysqlServicePort),
   AGENT_DB_SCHEMA_ENDPOINT: `http://127.0.0.1:${mysqlServicePort}/schema`,
   AGENT_DB_QUERY_ENDPOINT: `http://127.0.0.1:${mysqlServicePort}/query`,
+  DATABASE_URL: databaseUrl,
+  VECTOR_DATABASE_URL: vectorDatabaseUrl,
 };
 
 function runCommand(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: options.stdio ?? 'inherit',
-      shell: false,
+      shell: options.shell ?? false,
       env: options.env ?? process.env,
     });
-
     child.on('error', reject);
     child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
+      if (code === 0) resolve();
+      else reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
     });
   });
 }
 
-async function waitForHealth(url, maxAttempts = 40, intervalMs = 250) {
-  for (let i = 0; i < maxAttempts; i += 1) {
-    try {
-      const resp = await fetch(url, { method: 'GET' });
-      if (resp.ok) {
-        return true;
-      }
-    } catch {
-      // keep retrying
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  return false;
-}
-
 async function main() {
-  console.log(`[dev] starting docker container ${containerName}...`);
-  await runCommand('docker', ['start', containerName]);
+  console.log('[dev] docker compose up -d ...');
+  await runCommand('docker', ['compose', 'up', '-d']);
+
+  // 等容器就绪，避免 prisma 首连失败
+  await new Promise((r) => setTimeout(r, 2500));
+
+  console.log('[dev] prisma db push (MySQL schema.prisma) ...');
+  await runCommand('pnpm', ['exec', 'prisma', 'db', 'push', '--skip-generate'], {
+    env: sharedEnv,
+    shell: true,
+  });
+  console.log('[dev] prisma db push (Postgres vector.prisma) ...');
+  await runCommand(
+    'pnpm',
+    ['exec', 'prisma', 'db', 'push', '--schema', 'prisma/vector.prisma', '--skip-generate'],
+    { env: sharedEnv, shell: true }
+  );
 
   console.log(`[dev] starting mysql node service on port ${mysqlServicePort}...`);
   const logDir = path.resolve('temp');
@@ -65,31 +86,13 @@ async function main() {
   fs.writeFileSync(logFile, '');
   const logFd = fs.openSync(logFile, 'a');
 
-  const mysqlService = spawn('node', ['./serve/mysql-service.mjs'], {
+  const mysqlService = spawn('node', ['./serve/index.mjs'], {
     env: sharedEnv,
     stdio: ['ignore', logFd, logFd],
     shell: false,
   });
 
-  await new Promise((r) => setTimeout(r, 500));
-  if (mysqlService.exitCode !== null) {
-    const logs = fs.readFileSync(logFile, 'utf8');
-    throw new Error(`[dev] mysql service start failed\n${logs}`);
-  }
-
-  console.log('[dev] waiting for mysql service health...');
-  const healthy = await waitForHealth(`http://127.0.0.1:${mysqlServicePort}/health`);
-  if (!healthy) {
-    const logs = fs.readFileSync(logFile, 'utf8');
-    mysqlService.kill();
-    throw new Error(
-      `[dev] mysql service not ready after 10s. logs:\n${logs || '(empty)'}`
-    );
-  }
-
-  console.log(`[dev] mysql service ready (pid=${mysqlService.pid}).`);
   console.log('[dev] starting app via pnpm dev...');
-
   const app = spawn('pnpm', ['dev'], {
     env: sharedEnv,
     stdio: 'inherit',
@@ -97,10 +100,9 @@ async function main() {
   });
 
   app.on('close', () => {
-    if (!mysqlService.killed) {
-      mysqlService.kill();
-    }
+    if (!mysqlService.killed) mysqlService.kill();
     fs.closeSync(logFd);
+    // 默认不 `docker compose down`，保留容器便于下次快速重启。
   });
 }
 
@@ -108,4 +110,3 @@ main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 });
-

@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model student {
+  student_id    Int     @id
+  name          String  @db.VarChar(20)
+  gender        String? @db.VarChar(5)
+  age           Int?    @db.TinyInt
+  math_score    Int?
+  chinese_score Int?
+  rank_num      Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user_daily_stats {
+  id            BigInt   @id @default(autoincrement())
+  user_id       BigInt
+  username      String   @db.VarChar(50)
+  stat_date     DateTime @db.Date
+  like_count    Int?     @default(0)
+  share_count   Int?     @default(0)
+  forward_count Int?     @default(0)
+  comment_count Int?     @default(0)
+  view_count    Int?     @default(0)
+  new_fans      Int?     @default(0)
+
+  @@unique([user_id, stat_date], map: "uk_user_date")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user_info {
+  user_id       BigInt    @id @default(autoincrement())
+  username      String    @unique(map: "username") @db.VarChar(50)
+  password      String    @db.VarChar(60)
+  nickname      String    @db.VarChar(30)
+  gender        Int?      @db.TinyInt
+  age           Int?      @db.TinyInt
+  phone         String?   @db.VarChar(20)
+  email         String?   @db.VarChar(50)
+  create_time   DateTime? @default(now()) @db.DateTime(0)
+  like_count    Int?      @default(0)
+  share_count   Int?      @default(0)
+  forward_count Int?      @default(0)
+  follow_count  Int?      @default(0)
+  fan_count     Int?      @default(0)
+  post_count    Int?      @default(0)
+  status        Int?      @default(1) @db.TinyInt
+}
+
+/// AI 对话列表
+model agent_conversations {
+  id            String     @id @db.VarChar(64)
+  title         String     @default("新对话") @db.VarChar(200)
+  summary       String     @default("") @db.VarChar(500)
+  message_count Int        @default(0) @db.UnsignedInt
+  created_at    DateTime   @default(now()) @db.DateTime(0)
+  updated_at    DateTime   @default(now()) @updatedAt @db.DateTime(0)
+  messages      agent_messages[]
+
+  @@index([updated_at(sort: Desc)])
+}
+
+/// AI 对话消息记录
+model agent_messages {
+  id              BigInt               @id
+  conversation_id String               @db.VarChar(64)
+  role            String               @db.VarChar(10)
+  content         String               @db.MediumText
+  events_json     Json?
+  created_at      DateTime             @default(now()) @db.DateTime(0)
+  conversation    agent_conversations  @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([conversation_id])
+}
+
+/// 用户上传知识文档：整篇摘要与元数据（分段正文在向量库 agent_document_chunk_embeddings）
+model agent_documents {
+  id          String   @id @db.VarChar(64)
+  title       String   @default("") @db.VarChar(500)
+  file_path   String   @default("") @db.VarChar(1024)
+  summary     String   @db.MediumText
+  chunk_count Int      @default(0) @db.UnsignedInt
+  created_at  DateTime @default(now()) @db.DateTime(0)
+  updated_at  DateTime @default(now()) @updatedAt @db.DateTime(0)
+
+  @@index([updated_at(sort: Desc)])
+}

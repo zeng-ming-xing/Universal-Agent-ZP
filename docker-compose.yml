@@ -1,0 +1,57 @@
+# ============================================================================
+# 本地开发依赖：MySQL 业务库 + PostgreSQL（pgvector）向量库
+# ----------------------------------------------------------------------------
+# 常用命令：
+#   docker compose up -d             # 启动容器
+#   docker compose stop              # 停止容器，保留数据
+#   docker compose down              # 停止并删除容器（保留命名卷）
+#   docker compose down -v           # 连同数据卷一起删除（危险）
+#   docker compose logs -f <svc>     # 查看实时日志
+#
+# 注意：
+#   - 配置值来自项目根目录 .env（见 env_file）。默认 MySQL 对外 5000 端口，
+#     PostgreSQL 对外 5432 端口，与 .env 里的 MYSQL_PORT / VECTOR_DATABASE_URL 保持一致。
+#   - 如果此前已有旧容器（如 agitated_nobel）占用 5000 端口，需先 `docker stop/rm`
+#     旧容器，或把 .env 里的 MYSQL_PORT 改成别的端口。
+#   - pgvector 扩展需在 postgres 库中执行一次 `CREATE EXTENSION vector;`（已手动完成）。
+# ============================================================================
+
+name: electron-app-dev
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: electron-app-mysql
+    env_file:
+      - .env
+    environment:
+      # 与 .env 里的 MYSQL_USER / MYSQL_PASSWORD 对齐；root 用户由镜像默认创建
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-123456}
+      MYSQL_DATABASE: test
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    ports:
+      - "${MYSQL_PORT:-5000}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  pgvector:
+    # pgvector 官方镜像已预装 vector 扩展；CREATE EXTENSION 已手动执行过，无需 initdb 脚本
+    image: pgvector/pgvector:pg16
+    container_name: electron-app-pgvector
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector-data:/var/lib/postgresql/data
+
+volumes:
+  mysql-data:
+  pgvector-data:

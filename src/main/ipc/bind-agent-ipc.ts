@@ -1,16 +1,29 @@
-import { ipcMain } from 'electron'
-import { AgentManager } from '../managers/agent-manager'
-import { summarizeFirstMessage } from '../agent/model'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
+
+import { summarizeFirstMessage } from '../agent/model/utils/summary'
+import { AgentManager } from '../agent'
+import { ragOperator, type RagIngestProgress } from '../rag'
 
 export const bindAgentIpc = (agentManager: AgentManager): void => {
-  ipcMain.handle('agent:create-session', (_event, payload?: { sessionId?: string }) => {
-    const nextSessionId = payload?.sessionId?.trim()
-    if (!nextSessionId) {
-      throw new Error('sessionId is required')
+  ipcMain.handle(
+    'agent:create-session',
+    async (
+      _event,
+      payload?: {
+        sessionId?: string
+        /** 渲染进程当前会话消息（role + content），主进程只据此注入 LangGraph，不查库 */
+        messages?: Array<{ role?: string; content?: string }>
+      }
+    ) => {
+      const nextSessionId = payload?.sessionId?.trim()
+      if (!nextSessionId) {
+        throw new Error('sessionId is required')
+      }
+      const messages = Array.isArray(payload?.messages) ? payload!.messages! : []
+      await agentManager.createAgent(nextSessionId, messages)
+      return { sessionId: nextSessionId }
     }
-    agentManager.createAgent(nextSessionId)
-    return { sessionId: nextSessionId }
-  })
+  )
 
   ipcMain.handle('agent:remove-session', (_event, payload?: { sessionId?: string }) => {
     const nextSessionId = payload?.sessionId?.trim()
@@ -42,8 +55,15 @@ export const bindAgentIpc = (agentManager: AgentManager): void => {
       }
 
       const agent = agentManager.getAgent(sessionId)
+      if (!agent) {
+        event.sender.send('agent:chat-stream', {
+          requestId,
+          error: '会话未就绪，请先选中该对话'
+        })
+        return
+      }
       void agent
-        .chatStream(input, sessionId, {
+        .agentRequest(input, sessionId, {
           onChunk: (chunk) => {
             event.sender.send('agent:chat-stream', { requestId, chunk })
           },
@@ -70,8 +90,7 @@ export const bindAgentIpc = (agentManager: AgentManager): void => {
     if (!nextSessionId) {
       return
     }
-    const agent = agentManager.getAgent(nextSessionId)
-    agent.abortSession(nextSessionId)
+    agentManager.getAgent(nextSessionId)?.abortSession(nextSessionId)
   })
 
   ipcMain.handle(
@@ -87,6 +106,50 @@ export const bindAgentIpc = (agentManager: AgentManager): void => {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         return { summary: '', error: message }
+      }
+    }
+  )
+
+  ipcMain.handle('rag:pick-document-path', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const opts = {
+      title: '选择知识文档',
+      properties: ['openFile'] as Array<'openFile'>,
+      filters: [{ name: 'Markdown / 文本', extensions: ['md', 'markdown', 'txt'] }]
+    }
+    const { canceled, filePaths } =
+      win != null ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    if (canceled || !filePaths?.[0]) {
+      return { path: null as string | null }
+    }
+    return { path: filePaths[0] }
+  })
+
+  ipcMain.handle(
+    'rag:upload-document',
+    async (event, payload?: { filePath?: string }) => {
+      const filePath = payload?.filePath?.trim()
+      if (!filePath) {
+        return { ok: false as const, error: 'filePath 不能为空' }
+      }
+
+      const sender = event.sender
+      const onProgress = (data: RagIngestProgress) => {
+        if (!sender.isDestroyed()) {
+          sender.send('rag:upload-progress', data)
+        }
+      }
+
+      ragOperator.on('progress', onProgress)
+      try {
+        const result = await ragOperator.ingestLocalDocument(filePath)
+        void agentManager.loadRagDocumentSummaries()
+        return { ok: true as const, ...result }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return { ok: false as const, error: message }
+      } finally {
+        ragOperator.off('progress', onProgress)
       }
     }
   )
