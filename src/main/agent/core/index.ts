@@ -248,6 +248,7 @@ export class Agent extends EventEmitter {
     dedup = false
   ) {
     if (!streamCtx?.handlers?.onEvent) return;
+    if (!event.message?.trim()) return;
 
     if (dedup) {
       const key = getEventDedupKey(event);

@@ -56,12 +56,12 @@ model user_info {
 
 /// AI 对话列表
 model agent_conversations {
-  id            String     @id @db.VarChar(64)
-  title         String     @default("新对话") @db.VarChar(200)
-  summary       String     @default("") @db.VarChar(500)
-  message_count Int        @default(0) @db.UnsignedInt
-  created_at    DateTime   @default(now()) @db.DateTime(0)
-  updated_at    DateTime   @default(now()) @updatedAt @db.DateTime(0)
+  id            String           @id @db.VarChar(64)
+  title         String           @default("新对话") @db.VarChar(200)
+  summary       String           @default("") @db.VarChar(500)
+  message_count Int              @default(0) @db.UnsignedInt
+  created_at    DateTime         @default(now()) @db.DateTime(0)
+  updated_at    DateTime         @default(now()) @updatedAt @db.DateTime(0)
   messages      agent_messages[]
 
   @@index([updated_at(sort: Desc)])
@@ -69,13 +69,13 @@ model agent_conversations {
 
 /// AI 对话消息记录
 model agent_messages {
-  id              BigInt               @id
-  conversation_id String               @db.VarChar(64)
-  role            String               @db.VarChar(10)
-  content         String               @db.MediumText
+  id              BigInt              @id
+  conversation_id String              @db.VarChar(64)
+  role            String              @db.VarChar(10)
+  content         String              @db.MediumText
   events_json     Json?
-  created_at      DateTime             @default(now()) @db.DateTime(0)
-  conversation    agent_conversations  @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  created_at      DateTime            @default(now()) @db.DateTime(0)
+  conversation    agent_conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 
   @@index([conversation_id])
 }
@@ -91,4 +91,106 @@ model agent_documents {
   updated_at  DateTime @default(now()) @updatedAt @db.DateTime(0)
 
   @@index([updated_at(sort: Desc)])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ad_campaign {
+  ad_id         Int           @id @default(autoincrement())
+  account_id    Int
+  ad_name       String?       @db.VarChar(50)
+  budget        Decimal?      @db.Decimal(10, 2)
+  spend         Decimal?      @db.Decimal(10, 2)
+  click_count   Int?          @default(0)
+  start_time    DateTime?     @db.DateTime(0)
+  media_account media_account @relation(fields: [account_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction, map: "ad_campaign_ibfk_1")
+
+  @@index([account_id], map: "account_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model app_user {
+  user_id       Int             @id @default(autoincrement())
+  nickname      String          @db.VarChar(50)
+  gender        Int?            @db.TinyInt
+  age           Int?
+  city          String?         @db.VarChar(30)
+  register_time DateTime?       @default(now()) @db.DateTime(0)
+  is_vip        Int?            @default(0) @db.TinyInt
+  interaction   interaction[]
+  product_order product_order[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model content {
+  content_id    Int             @id @default(autoincrement())
+  account_id    Int
+  title         String          @db.VarChar(100)
+  content_type  String?         @db.VarChar(10)
+  publish_time  DateTime?       @db.DateTime(0)
+  view_count    Int?            @default(0)
+  media_account media_account   @relation(fields: [account_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction, map: "content_ibfk_1")
+  interaction   interaction[]
+  product_order product_order[]
+
+  @@index([account_id], map: "account_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model fan_profile {
+  id             Int           @id @default(autoincrement())
+  account_id     Int
+  gender         Int?          @db.TinyInt
+  age_range      String?       @db.VarChar(20)
+  occupation     String?       @db.VarChar(30)
+  fan_proportion Decimal?      @db.Decimal(5, 2)
+  media_account  media_account @relation(fields: [account_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction, map: "fan_profile_ibfk_1")
+
+  @@index([account_id], map: "account_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model interaction {
+  id            Int       @id @default(autoincrement())
+  content_id    Int
+  user_id       Int
+  like_flag     Int?      @default(0) @db.TinyInt
+  comment_flag  Int?      @default(0) @db.TinyInt
+  collect_flag  Int?      @default(0) @db.TinyInt
+  share_flag    Int?      @default(0) @db.TinyInt
+  interact_time DateTime? @default(now()) @db.DateTime(0)
+  content       content   @relation(fields: [content_id], references: [content_id], onDelete: NoAction, onUpdate: NoAction, map: "interaction_ibfk_1")
+  app_user      app_user  @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "interaction_ibfk_2")
+
+  @@index([content_id], map: "content_id")
+  @@index([user_id], map: "user_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model media_account {
+  account_id   Int           @id @default(autoincrement())
+  account_name String        @db.VarChar(50)
+  platform     String        @db.VarChar(20)
+  fans_count   Int?          @default(0)
+  create_time  DateTime?     @default(now()) @db.DateTime(0)
+  status       Int?          @default(1) @db.TinyInt
+  ad_campaign  ad_campaign[]
+  content      content[]
+  fan_profile  fan_profile[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model product_order {
+  order_id     String    @id @db.VarChar(32)
+  content_id   Int
+  user_id      Int
+  product_name String?   @db.VarChar(100)
+  price        Decimal?  @db.Decimal(10, 2)
+  quantity     Int?
+  total_amount Decimal?  @db.Decimal(10, 2)
+  order_time   DateTime? @db.DateTime(0)
+  content      content   @relation(fields: [content_id], references: [content_id], onDelete: NoAction, onUpdate: NoAction, map: "product_order_ibfk_1")
+  app_user     app_user  @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "product_order_ibfk_2")
+
+  @@index([content_id], map: "content_id")
+  @@index([user_id], map: "user_id")
 }

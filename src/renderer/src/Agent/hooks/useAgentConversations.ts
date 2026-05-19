@@ -236,17 +236,20 @@ export function useAgentConversations() {
           if (item.id !== id) return item
           const prevEvents = item.events ?? []
           const last = prevEvents[prevEvents.length - 1]
+          const isWhitespaceOnly = !chunk.trim()
           const nextEvents =
             last?.kind === 'assistant_text'
               ? [...prevEvents.slice(0, -1), { ...last, message: `${last.message}${chunk}` }]
-              : [
-                  ...prevEvents,
-                  {
-                    kind: 'assistant_text' as const,
-                    message: chunk,
-                    time: getTimeText()
-                  }
-                ]
+              : isWhitespaceOnly
+                ? prevEvents
+                : [
+                    ...prevEvents,
+                    {
+                      kind: 'assistant_text' as const,
+                      message: chunk,
+                      time: getTimeText()
+                    }
+                  ]
           return {
             ...item,
             content: `${item.content}${chunk}`,

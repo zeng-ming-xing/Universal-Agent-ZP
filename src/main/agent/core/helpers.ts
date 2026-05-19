@@ -33,14 +33,26 @@ export function tryParseCustomEvent(
 ): AgentFrontendEvent | null {
   if (payload && typeof payload === 'object' && 'kind' in payload) {
     const typed = payload as AgentFrontendEvent;
-    if (typeof typed.kind === 'string' && typeof typed.message === 'string') {
+    if (
+      typeof typed.kind === 'string' &&
+      typeof typed.message === 'string' &&
+      typed.message.trim()
+    ) {
       return typed;
     }
   }
   if (typeof payload === 'string') {
+    const trimmed = payload.trim();
+    if (!trimmed) return null;
     try {
-      const parsed = JSON.parse(payload) as AgentFrontendEvent;
-      if (parsed && typeof parsed === 'object' && 'kind' in parsed) {
+      const parsed = JSON.parse(trimmed) as AgentFrontendEvent;
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        'kind' in parsed &&
+        typeof (parsed as AgentFrontendEvent).message === 'string' &&
+        (parsed as AgentFrontendEvent).message.trim()
+      ) {
         return parsed;
       }
     } catch {
@@ -49,7 +61,7 @@ export function tryParseCustomEvent(
     return {
       kind: 'agent_step',
       step: 'custom',
-      message: payload,
+      message: trimmed,
     };
   }
   return null;
