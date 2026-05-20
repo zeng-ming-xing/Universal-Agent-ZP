@@ -1,10 +1,10 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 
 import { summarizeFirstMessage } from '../agent/model/utils/summary'
-import { AgentManager } from '../agent'
+import type { AgentManagerLike } from '../agentGraph'
 import { ragOperator, type RagIngestProgress } from '../rag'
 
-export const bindAgentIpc = (agentManager: AgentManager): void => {
+export const bindAgentIpc = (agentManager: AgentManagerLike): void => {
   ipcMain.handle(
     'agent:create-session',
     async (

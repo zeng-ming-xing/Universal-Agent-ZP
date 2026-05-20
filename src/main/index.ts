@@ -1,12 +1,15 @@
 import './polyfills/webcrypto'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { AgentManager } from './agent'
+import { AgentManager as LegacyAgentManager } from './agent'
+import { AgentManager as LangGraphAgentManager } from './agentGraph'
 import { WindowManager } from './window'
 import { bindAgentIpc } from './ipc/bind-agent-ipc'
 
 const windowManager = new WindowManager()
-const agentManager = new AgentManager()
+const agentManager = new LangGraphAgentManager()
+
+// const agentManager = new LegacyAgentManager()
 
 Object.assign(globalThis, {
   windowManager,
