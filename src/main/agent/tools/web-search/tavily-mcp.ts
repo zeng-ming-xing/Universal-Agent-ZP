@@ -120,6 +120,9 @@ export function formatMergedSearchResults(
  * 文档：https://docs.tavily.com/guides/mcp
  */
 export async function callTavilyMcpSearch(query: string): Promise<TavilySearchData> {
+  if (!TAVILY_MCP_ENDPOINT?.trim() || !TAVILY_API_KEY?.trim()) {
+    throw new Error('TAVILY_MCP_ENDPOINT 与 TAVILY_API_KEY 未配置');
+  }
   const url = new URL(TAVILY_MCP_ENDPOINT);
   url.searchParams.set('tavilyApiKey', TAVILY_API_KEY);
   const endpoint = url.toString();

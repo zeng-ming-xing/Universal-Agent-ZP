@@ -1,36 +1,33 @@
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
+
+const DEFAULT_MAX_CHUNK_CHARS = 1200
+const DEFAULT_OVERLAP_CHARS = 80
+const MIN_CHUNK_CHARS = 256
+
 /**
- * 按段落优先、再按最大字符数切分，适合作为简单入库分块策略。
+ * 使用 LangChain RecursiveCharacterTextSplitter：优先按段落/换行/空格递归切分。
  */
-export function chunkDocument(
+export async function chunkDocument(
   text: string,
   opts?: { maxChunkChars?: number; overlapChars?: number }
-): string[] {
-  const max = Math.max(256, opts?.maxChunkChars ?? 1200)
-  const overlap = Math.max(0, Math.min(opts?.overlapChars ?? 80, Math.floor(max / 2)))
+): Promise<string[]> {
+  const chunkSize = Math.max(MIN_CHUNK_CHARS, opts?.maxChunkChars ?? DEFAULT_MAX_CHUNK_CHARS)
+  const chunkOverlap = Math.max(
+    0,
+    Math.min(opts?.overlapChars ?? DEFAULT_OVERLAP_CHARS, Math.floor(chunkSize / 2))
+  )
+
   const normalized = text.replace(/\r\n/g, '\n').trim()
   if (!normalized) {
     return []
   }
-  const paragraphs = normalized.split(/\n{2,}/)
-  const chunks: string[] = []
-  for (const p of paragraphs) {
-    const part = p.trim()
-    if (!part) {
-      continue
-    }
-    if (part.length <= max) {
-      chunks.push(part)
-      continue
-    }
-    let start = 0
-    while (start < part.length) {
-      const end = Math.min(part.length, start + max)
-      chunks.push(part.slice(start, end).trim())
-      if (end >= part.length) {
-        break
-      }
-      start = Math.max(end - overlap, start + 1)
-    }
-  }
-  return chunks.filter(Boolean)
+
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize,
+    chunkOverlap,
+    separators: ['\n\n', '\n', ' ', '']
+  })
+
+  const chunks = await splitter.splitText(normalized)
+  return chunks.map((c) => c.trim()).filter(Boolean)
 }

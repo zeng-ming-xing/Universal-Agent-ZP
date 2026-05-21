@@ -11,12 +11,13 @@ export const RAG_GLM_EMBEDDING_DIM = (() => {
   return Number.isFinite(n) && n > 0 ? n : 1024;
 })();
 
-export const GLM_EMBEDDINGS_URL = process.env.ZHIPU_EMBEDDINGS_URL;
+export const GLM_EMBEDDINGS_URL =
+  process.env.ZHIPU_EMBEDDINGS_URL ?? 'https://open.bigmodel.cn/api/paas/v4/embeddings';
 
-export const GLM_EMBEDDING_MODEL = process.env.ZHIPU_EMBEDDING_MODEL;
+export const GLM_EMBEDDING_MODEL = process.env.ZHIPU_EMBEDDING_MODEL ?? 'embedding-2';
 
 export function resolveZhipuApiKey(): string {
-  return process.env.ZHIPU_API_KEY ?? '';
+  return process.env.ZHIPU_EMBEDDINGS_KEY ?? '';
 }
 
 /** 向量 HTTP 服务根地址（与 mysql-service 同端口，见 serve/createServer.mjs） */

@@ -26,6 +26,9 @@ importers:
       '@langchain/openai':
         specifier: ^1.4.4
         version: 1.4.5(@langchain/core@1.1.45(openai@6.37.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))(ws@8.20.1)
+      '@langchain/textsplitters':
+        specifier: ^1.0.1
+        version: 1.0.1(@langchain/core@1.1.45(openai@6.37.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
@@ -519,6 +522,12 @@ packages:
 
   '@langchain/protocol@0.0.15':
     resolution: {integrity: sha512-MllvbpMjqHevUm+v94M422mH7XKN+wGCvJRBVROTWBotEDOATYB4Ktk2UheYP859y9o2LlhtPek5t1T9eyfAbQ==}
+
+  '@langchain/textsplitters@1.0.1':
+    resolution: {integrity: sha512-rheJlB01iVtrOUzttscutRgLybPH9qR79EyzBEbf1u97ljWyuxQfCwIWK+SjoQTM9O8M7GGLLRBSYE26Jmcoww==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@langchain/core': ^1.0.0
 
   '@malept/cross-spawn-promise@1.1.1':
     resolution: {integrity: sha512-RTBGWL5FWQcg9orDOCcp4LvItNzUPcyEU9bwaeJX0rJ1IQxzucC48Y0/sQLp/g6t99IQgAlGIaesJS+gTn7tVQ==}
@@ -3922,6 +3931,11 @@ snapshots:
       - ws
 
   '@langchain/protocol@0.0.15': {}
+
+  '@langchain/textsplitters@1.0.1(@langchain/core@1.1.45(openai@6.37.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))':
+    dependencies:
+      '@langchain/core': 1.1.45(openai@6.37.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)
+      js-tiktoken: 1.0.21
 
   '@malept/cross-spawn-promise@1.1.1':
     dependencies:

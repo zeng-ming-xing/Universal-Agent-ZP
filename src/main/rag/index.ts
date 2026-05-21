@@ -90,7 +90,7 @@ export class RagOperator extends EventEmitter {
       }
 
       this.emitProgress({ stage: 'chunk', message: '正在切分文档…' })
-      const chunks = this.chunkDocument(text)
+      const chunks = await this.chunkDocument(text)
       if (chunks.length === 0) {
         throw new Error('切分后没有有效段落')
       }
@@ -228,9 +228,11 @@ export class RagOperator extends EventEmitter {
       input = s
     }
 
-    const res = await axios.post<{
+    type GlmEmbeddingsResponse = {
       data?: { embedding?: number[]; index?: number }[]
-    }>(
+    }
+
+    const res = await axios.post<GlmEmbeddingsResponse>(
       GLM_EMBEDDINGS_URL,
       { model: GLM_EMBEDDING_MODEL, input },
       {
@@ -240,9 +242,11 @@ export class RagOperator extends EventEmitter {
         },
         timeout: this.embeddingTimeoutMs
       }
-    )
+    ).catch((er)=>{
+      console.log(er,246)
+    })
 
-    const rows = res.data?.data
+    const rows = (res.data as GlmEmbeddingsResponse | undefined)?.data
     if (!Array.isArray(rows) || rows.length === 0) {
       throw new Error('getTextEmbedding: empty embedding in response')
     }
@@ -262,12 +266,12 @@ export class RagOperator extends EventEmitter {
   }
 
   /**
-   * 按段落优先、再按最大字符数切分，适合作为简单入库分块策略。
+   * LangChain RecursiveCharacterTextSplitter：优先按段落/换行/空格递归切分。
    */
-  chunkDocument(
+  async chunkDocument(
     text: string,
     opts?: { maxChunkChars?: number; overlapChars?: number }
-  ): string[] {
+  ): Promise<string[]> {
     return splitDocumentIntoChunks(text, opts)
   }
 
