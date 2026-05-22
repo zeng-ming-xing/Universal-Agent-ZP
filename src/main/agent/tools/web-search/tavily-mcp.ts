@@ -34,7 +34,7 @@ function extractMcpSseResult(sseText: string): unknown {
  * result.content 是 MCP ContentBlock 数组，Tavily 固定返回一个 type:"text" 块，
  * 其 text 字段是 JSON 字符串：{ answer?: string; results: [...] }
  */
-function parseTavilyResult(rpcMsg: unknown): TavilySearchData {
+function parseTavilyMcpResult(rpcMsg: unknown): TavilySearchData {
   if (!rpcMsg || typeof rpcMsg !== 'object') return {};
 
   const msg = rpcMsg as {
@@ -51,7 +51,6 @@ function parseTavilyResult(rpcMsg: unknown): TavilySearchData {
   const textBlock = msg.result?.content?.find((c) => c.type === 'text');
   if (!textBlock?.text) return {};
 
-  // text 字段可能是 JSON 也可能是纯文本
   try {
     return JSON.parse(textBlock.text) as TavilySearchData;
   } catch {
@@ -110,29 +109,29 @@ export function formatMergedSearchResults(
 }
 
 /**
- * Tavily 远程 MCP 搜索。
+ * 调用 Tavily Remote MCP 执行搜索。
  *
  * 协议：MCP Streamable HTTP（JSON-RPC 2.0 over HTTP POST）
- *   步骤 1：POST initialize   → 获取 Mcp-Session-Id
- *   步骤 2：POST notifications/initialized（通知，无需等待响应体）
- *   步骤 3：POST tools/call   → 获取搜索结果（JSON 或 SSE 流）
+ *   步骤 1：POST initialize   → 建立会话，获取 Mcp-Session-Id（若服务端下发）
+ *   步骤 2：POST notifications/initialized → 通知客户端就绪（fire-and-forget）
+ *   步骤 3：POST tools/call   → 执行搜索，获取结果
+ * 所有请求均携带 Authorization: Bearer <api-key>
  *
- * 文档：https://docs.tavily.com/guides/mcp
+ * 文档：https://github.com/tavily-ai/tavily-mcp
  */
 export async function callTavilyMcpSearch(query: string): Promise<TavilySearchData> {
   if (!TAVILY_MCP_ENDPOINT?.trim() || !TAVILY_API_KEY?.trim()) {
     throw new Error('TAVILY_MCP_ENDPOINT 与 TAVILY_API_KEY 未配置');
   }
-  const url = new URL(TAVILY_MCP_ENDPOINT);
-  url.searchParams.set('tavilyApiKey', TAVILY_API_KEY);
-  const endpoint = url.toString();
 
+  const endpoint = TAVILY_MCP_ENDPOINT.trim();
   const baseHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json, text/event-stream',
+    Authorization: `Bearer ${TAVILY_API_KEY}`,
   };
 
-  // 步骤 1：initialize
+  // 步骤 1：initialize — 建立会话
   const initRes = await fetch(endpoint, {
     method: 'POST',
     headers: baseHeaders,
@@ -150,27 +149,27 @@ export async function callTavilyMcpSearch(query: string): Promise<TavilySearchDa
   });
 
   if (!initRes.ok) {
+    const errBody = await initRes.text();
     throw new Error(
-      `Tavily MCP initialize 失败: ${initRes.status} ${initRes.statusText}`
+      `Tavily MCP initialize 失败: ${initRes.status} ${initRes.statusText}\n${errBody}`
     );
   }
+  await initRes.text(); // 消费响应体，避免连接复用问题
 
+  // 从响应头获取 session id（无状态服务可能不下发，为 null）
   const sessionId = initRes.headers.get('mcp-session-id');
   const sessionHeaders: Record<string, string> = { ...baseHeaders };
   if (sessionId) sessionHeaders['Mcp-Session-Id'] = sessionId;
 
-  // 步骤 2：notifications/initialized（通知，无 id，fire-and-forget）
+  // 步骤 2：notifications/initialized — fire-and-forget
   fetch(endpoint, {
     method: 'POST',
     headers: sessionHeaders,
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'notifications/initialized',
-    }),
+    body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
     signal: AbortSignal.timeout(WEB_SEARCH_REQUEST_TIMEOUT_MS),
   }).catch(() => undefined);
 
-  // 步骤 3：tools/call tavily-search
+  // 步骤 3：tools/call tavily_search
   const searchRes = await fetch(endpoint, {
     method: 'POST',
     headers: sessionHeaders,
@@ -191,8 +190,9 @@ export async function callTavilyMcpSearch(query: string): Promise<TavilySearchDa
   });
 
   if (!searchRes.ok) {
+    const errBody = await searchRes.text();
     throw new Error(
-      `Tavily MCP tools/call 失败: ${searchRes.status} ${searchRes.statusText}`
+      `Tavily MCP tools/call 失败: ${searchRes.status} ${searchRes.statusText}\n${errBody}`
     );
   }
 
@@ -200,7 +200,12 @@ export async function callTavilyMcpSearch(query: string): Promise<TavilySearchDa
   const contentType = searchRes.headers.get('content-type') ?? '';
 
   let rpcMsg: unknown;
-  if (contentType.includes('text/event-stream')) {
+  // 联网搜索响应可能是 SSE 格式或直接 JSON
+  if (
+    contentType.includes('text/event-stream') ||
+    responseText.trimStart().startsWith('event:') ||
+    responseText.trimStart().startsWith('data:')
+  ) {
     rpcMsg = extractMcpSseResult(responseText);
   } else {
     try {
@@ -210,5 +215,5 @@ export async function callTavilyMcpSearch(query: string): Promise<TavilySearchDa
     }
   }
 
-  return parseTavilyResult(rpcMsg);
+  return parseTavilyMcpResult(rpcMsg);
 }

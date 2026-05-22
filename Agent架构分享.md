@@ -61,6 +61,8 @@ flowchart TB
 
 | 维度 | LangChain + LangGraph | LlamaIndex | AutoGen | CrewAI | Semantic Kernel |
 |------|----------------------|------------|---------|--------|-----------------|
+| **⭐ Stars** | LangChain ~132k / LangGraph ~24k | ~42k | ~57k | ~48k | ~28k |
+| **GitHub** | [langchain](https://github.com/langchain-ai/langchain) / [langgraph](https://github.com/langchain-ai/langgraph) | [llama_index](https://github.com/run-llama/llama_index) | [autogen](https://github.com/microsoft/autogen) | [crewAI](https://github.com/crewAIInc/crewAI) | [semantic-kernel](https://github.com/microsoft/semantic-kernel) |
 | **定位** | 通用 Agent + 显式图编排 | 数据索引与 RAG 优先 | 多 Agent 对话协作 | 角色分工任务链 | 企业级插件与规划器 |
 | **编排** | `StateGraph`、条件边、子图 | Workflow / Query Engine | 群聊、Handoff | Crew → Task 流水线 | Planner + Plugins |
 | **工具** | `tool()` + `ToolNode`，生态全 | 检索器 + 工具包装 | 代码执行、MCP | 内置角色工具 | 多语言 Plugin |

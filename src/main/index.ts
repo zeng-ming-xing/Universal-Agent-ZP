@@ -2,6 +2,8 @@ import './polyfills/webcrypto'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { AgentManager as LangGraphAgentManager } from './agentGraph'
+import { AgentManager as LegacyAgentManager } from './agent'
+
 import { WindowManager } from './window'
 import { bindAgentIpc } from './ipc/bind-agent-ipc'
 
