@@ -13,7 +13,7 @@ export {
 
 const eventDedupLimit = Number(process.env.AGENT_EVENT_DEDUP_LIMIT) || 200;
 
-function getIncrementalText(previous: string, current: string): string {
+export function getIncrementalText(previous: string, current: string): string {
   if (!current) return '';
   if (!previous) return current;
   if (current.startsWith(previous)) {

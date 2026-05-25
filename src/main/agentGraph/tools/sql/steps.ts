@@ -4,7 +4,8 @@
  * 每个步骤仅通过 emit 回调上报进度。供 index.ts 编排调用。
  */
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { unwrapJsonText } from '../../../agent/core/helpers';
+import { unwrapJsonText, extractThinkingFromToken } from '../../../agent/core/helpers';
+import { getIncrementalText } from '../../core/helpers';
 import { createModel } from '../../../agent/model';
 import { PAGE_SIZE_THRESHOLD } from '../../../agent/tools/config';
 import {
@@ -21,7 +22,7 @@ import type { AgentManager } from '../../index';
 
 /** 步骤内的事件发射回调 */
 export type PipelineEmitFn = (event: {
-  kind: 'tool_progress' | 'tool_result';
+  kind: 'tool_progress' | 'tool_result' | 'thinking_chunk';
   tool: string;
   message: string;
 }) => void;
@@ -106,7 +107,7 @@ export async function loadSchema(
   return schemaJson;
 }
 
-/** LLM 生成只读 SELECT */
+/** LLM 生成只读 SELECT；流式调用以捕获思考过程 */
 export async function generateSql(
   emit: PipelineEmitFn,
   params: {
@@ -119,7 +120,7 @@ export async function generateSql(
   emit({ kind: 'tool_progress', tool: 'generate_sql', message: '正在生成 SQL...' });
 
   const plannerModel = createModel({ temperature: 0.2, maxTokens: 8192 });
-  const response = await plannerModel.invoke([
+  const messages = [
     new SystemMessage(
       [
         '你是资深 MySQL 查询规划器。',
@@ -143,9 +144,41 @@ export async function generateSql(
         .filter(Boolean)
         .join('\n\n'),
     ),
-  ]);
+  ];
 
-  const sql = String(response.content ?? '')
+  let fullContent = '';
+  let lastThinkingText = '';
+
+  const stream = await plannerModel.stream(messages);
+  for await (const token of stream) {
+    // 提取思考过程并增量 emit
+    const rawThinking = extractThinkingFromToken(token);
+    if (rawThinking) {
+      const thinkingDelta = getIncrementalText(lastThinkingText, rawThinking);
+      lastThinkingText = rawThinking;
+      if (thinkingDelta) {
+        emit({ kind: 'thinking_chunk', tool: 'generate_sql', message: thinkingDelta });
+      }
+    }
+
+    // 累积正文内容
+    const tokenContent = (token as { content?: unknown })?.content;
+    const text =
+      typeof tokenContent === 'string'
+        ? tokenContent
+        : Array.isArray(tokenContent)
+          ? tokenContent
+              .map((item) =>
+                typeof item === 'string'
+                  ? item
+                  : ((item as { text?: unknown })?.text ?? ''),
+              )
+              .join('')
+          : '';
+    if (text) fullContent += text;
+  }
+
+  const sql = fullContent
     .trim()
     .replace(/^```sql\s*/i, '')
     .replace(/^```\s*/i, '')

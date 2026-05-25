@@ -33,7 +33,7 @@ function createQueryDatabaseTool(getManager: () => AgentManager) {
 
       // 将 ToolRuntime.writer 适配为 PipelineEmitFn
       const emit = (event: {
-        kind: 'tool_progress' | 'tool_result';
+        kind: 'tool_progress' | 'tool_result' | 'thinking_chunk';
         tool: string;
         message: string;
       }) => {
