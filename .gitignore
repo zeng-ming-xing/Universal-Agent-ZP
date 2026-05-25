@@ -7,4 +7,3 @@ out
 # 环境变量：仅提交 .env.example
 .env
 .env.*
-!.env.example
